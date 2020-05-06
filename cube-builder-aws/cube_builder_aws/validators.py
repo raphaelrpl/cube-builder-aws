@@ -9,7 +9,7 @@ def to_date(s):
 
 def to_bbox(s):
     bbox = s.split(',')
-    if len(bbox) != 4: 
+    if len(bbox) != 4:
         return None
     return bbox
 
@@ -23,7 +23,8 @@ def create():
         'bands': {"type": "list", "empty": False, "required": True},
         'license': {"type": "string", "empty": False, "required": True},
         'oauth_scope': {"type": "string", "empty": True, "required": False},
-        'description': {"type": "string", "empty": False, "required": True}
+        'description': {"type": "string", "empty": False, "required": True},
+        'metadata': {'type': 'dict', 'empty': True, 'required': False, 'default': dict()}
     }
     return item
 

@@ -14,7 +14,7 @@ from .maestro import orchestrate, prepare_merge, \
 from .services import CubeServices
 
 class CubeBusiness:
-    
+
     def __init__(self):
         self.score = {}
 
@@ -48,6 +48,7 @@ class CubeBusiness:
                     oauth_scope=params.get('oauth_scope', None),
                     license=params['license'],
                     bands_quicklook=','.join(params['bands_quicklook'])
+                    metadata=params['metadata']
                 )
                 cubes.append(cube)
                 cubes_serealized.append(Serializer.serialize(cube))
@@ -90,7 +91,7 @@ class CubeBusiness:
         # STATUS
         items = [item for item in activitiesCtrl['Items'] if datacube in item['id']]
         not_done = [i for i in activities['Items'] if datacube in i['id'] and i['mystatus'] == 'NOTDONE']
-        if len(not_done): 
+        if len(not_done):
             return dict(
                 finished = False,
                 not_done = len(not_done)
@@ -98,7 +99,7 @@ class CubeBusiness:
 
         for item in items:
             items_by_id = [i for i in activities['Items'] if item['id'] in i['id']]
-            if int(items_by_id[0]['totalInstancesToBeDone']) > int(item['mycount']): 
+            if int(items_by_id[0]['totalInstancesToBeDone']) > int(item['mycount']):
                 return dict(
                     finished = False,
                     not_done = int(items_by_id[0]['totalInstancesToBeDone']) - int(item['mycount'])
@@ -127,7 +128,7 @@ class CubeBusiness:
                     value = (end - dates['e']).seconds
                     if value > 0 and value < time_by_act:
                         time_by_act = value
-                
+
                 elif dates['s'] < end < dates['e']:
                     value = (dates['s'] - start).seconds
                     if value > 0 and value < time_by_act:
@@ -140,10 +141,10 @@ class CubeBusiness:
 
                 elif start < dates['s'] or end > dates['e']:
                     time_by_act = 0
-            
+
             time += time_by_act
             list_dates.append({'s': start, 'e': end})
-        
+
         time_str = '{} h {} m {} s'.format(
             int(time / 60 / 60), int(time / 60), (time % 60))
 
@@ -179,7 +180,7 @@ class CubeBusiness:
         self.score['items'] = orchestrate(params['datacube'], cube_infos, tiles, start_date, end_date)
 
         # prepare merge
-        prepare_merge(self, params['datacube'], params['collections'].split(','), bands_list, 
+        prepare_merge(self, params['datacube'], params['collections'].split(','), bands_list,
             cube_infos.bands_quicklook, bands[0].resolution_x, bands[0].resolution_y, bands[0].fill,
             cube_infos.raster_size_schemas.raster_size_x, cube_infos.raster_size_schemas.raster_size_y,
             cube_infos.raster_size_schemas.chunk_size_x, cube_infos.grs_schema.crs)
@@ -190,7 +191,7 @@ class CubeBusiness:
         params = params_list[0]
         if 'channel' in params and params['channel'] == 'kinesis':
             solo(self, params_list)
-        
+
         # dispatch MERGE
         elif params['action'] == 'merge':
             merge_warped(self, params)
@@ -223,7 +224,7 @@ class CubeBusiness:
             tilesrsp4 = "+proj=aea +lat_1=10 +lat_2=-40 +lat_0=0 +lon_0={} +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs".format(meridian)
         elif projection == 'sinu':
             tilesrsp4 = "+proj=sinu +lon_0={0} +x_0=0 +y_0=0 +a=6371007.181 +b=6371007.181 +units=m +no_defs".format(0.)
-        
+
         # Number of tiles and base tile
         numtilesx = int(360./degreesx)
         numtilesy = int(180./degreesy)
@@ -298,14 +299,14 @@ class CubeBusiness:
                 LL_lat = out[1][3]
 
                 wkt_wgs84 = 'POLYGON(({} {},{} {},{} {},{} {},{} {}))'.format(
-                    UL_lon, UL_lat, 
+                    UL_lon, UL_lat,
                     UR_lon, UR_lat,
                     LR_lon, LR_lat,
                     LL_lon, LL_lat,
                     UL_lon, UL_lat)
 
                 wkt = 'POLYGON(({} {},{} {},{} {},{} {},{} {}))'.format(
-                    x1, y2, 
+                    x1, y2,
                     x2, y2,
                     x2, y1,
                     x1, y1,
@@ -327,7 +328,7 @@ class CubeBusiness:
     def create_raster_size(self, grs_schema, resolution, chunk_size_x, chunk_size_y):
         tile = db.session() \
             .query(
-                Tile, func.ST_Xmin(Tile.geom), func.ST_Xmax(Tile.geom), 
+                Tile, func.ST_Xmin(Tile.geom), func.ST_Xmax(Tile.geom),
                 func.ST_Ymin(Tile.geom), func.ST_Ymax(Tile.geom)
             ).filter(
                 Tile.grs_schema_id == grs_schema
