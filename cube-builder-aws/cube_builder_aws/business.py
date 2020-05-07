@@ -47,7 +47,7 @@ class CubeBusiness:
                     is_cube=True,
                     oauth_scope=params.get('oauth_scope', None),
                     license=params['license'],
-                    bands_quicklook=','.join(params['bands_quicklook'])
+                    bands_quicklook=','.join(params['bands_quicklook']),
                     metadata=params['metadata']
                 )
                 cubes.append(cube)
