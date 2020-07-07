@@ -23,7 +23,7 @@ def to_bbox(s):
 
 def create():
     item = {
-        'datacube': {"type": "string", "empty": False, "required": True},
+        'datacube': {"type": "string", "empty": False, "required": True, 'regex': '^[a-zA-Z0-9]*$'},
         'grs': {"type": "string", "empty": False, "required": True},
         'resolution': {"type": "integer", "empty": False, "required": True},
         'temporal_schema': {"type": "string", "empty": False, "required": True},
@@ -31,7 +31,8 @@ def create():
         'bands': {"type": "list", "empty": False, "required": True},
         'license': {"type": "string", "empty": True, "required": False},
         'oauth_scope': {"type": "string", "empty": True, "required": False},
-        'description': {"type": "string", "empty": True, "required": False}
+        'description': {"type": "string", "empty": True, "required": False},
+        'composite_function': {'type': 'string', 'empty': True, 'allowed': ['MED', 'STK', 'IDENTITY']},
     }
     return item
 
@@ -45,7 +46,8 @@ def process():
         'satellite': {"type": "string", "empty": False, "required": True},
         'start_date': {"type": "date", "coerce": to_date, "empty": False, "required": True},
         'end_date': {"type": "date", "coerce": to_date, "empty": True, "required": False},
-        'force': {'type': 'boolean', 'required': False, 'default': False}
+        'force': {'type': 'boolean', 'required': False, 'default': False},
+        'save_identity': {'type': 'boolean', 'required': False, 'default': False}
     }
     return item
 

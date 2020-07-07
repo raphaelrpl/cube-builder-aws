@@ -105,7 +105,7 @@ def start():
     # validate params
     data, status = validate(request.json, 'process')
     if status is False:
-        return jsonify(json.dumps(data)), 400
+        return jsonify(data), 400
 
     business = CubeBusiness(url_stac=data['url_stac'], bucket=data['bucket'])
     message, status = business.start_process(data)

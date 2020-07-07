@@ -19,7 +19,8 @@ from bdc_db.models import Collection, Band, CollectionItem, Tile, \
 
 from .logger import logger
 from .utils.serializer import Serializer
-from .utils.builder import get_date, get_cube_id, get_cube_parts, decode_periods, revisit_by_satellite
+from .utils.builder import get_date, get_cube_id, get_cube_parts, decode_periods, revisit_by_satellite, \
+    DataCubeFragments
 from .utils.image import validate_merges
 from .maestro import orchestrate, prepare_merge, \
     merge_warped, solo, blend, publish
@@ -42,68 +43,111 @@ class CubeBusiness:
 
         return cube
 
-    def create_cube(self, params):
-        params['composite_function_list'] = ['IDENTITY', 'STK', 'MED']
+    def _create_cube_definition(self, cube_id: str, params: dict) -> dict:
+        """Create a data cube definition.
 
-        # generate cubes metadata
-        cubes_db = Collection.query().filter().all()
-        cubes = []
-        cubes_serealized = []
-        for composite_function in params['composite_function_list']:
-            c_function_id = composite_function.upper()
-            raster_size_id = '{}-{}'.format(params['grs'], int(params['resolution']))
-            cube_id = get_cube_id(params['datacube'], c_function_id)
+        Basically, the definition consists in `Collection` and `Band` attributes.
 
-            # add cube
-            if not list(filter(lambda x: x.id == cube_id, cubes)) and not list(filter(lambda x: x.id == cube_id, cubes_db)):
-                cube = Collection(
-                    id=cube_id,
-                    temporal_composition_schema_id=params['temporal_schema'] if c_function_id.upper() != 'IDENTITY' else 'Anull',
-                    raster_size_schema_id=raster_size_id,
-                    composite_function_schema_id=c_function_id,
-                    grs_schema_id=params['grs'],
-                    description=params['description'],
-                    radiometric_processing=None,
-                    geometry_processing=None,
-                    sensor=None,
-                    is_cube=True,
-                    oauth_scope=params.get('oauth_scope', None),
-                    license=params['license'],
-                    bands_quicklook=','.join(params['bands_quicklook'])
-                )
-                cubes.append(cube)
-                cubes_serealized.append(Serializer.serialize(cube))
-        BaseModel.save_all(cubes)
+        Note:
+            It does not try to create when data cube already exists.
+
+        Args:
+            cube_id - Data cube
+            params - Dict of required values to create data cube. See @validators.py
+
+        Returns:
+            A serialized data cube information.
+        """
+        cube_parts = get_cube_parts(cube_id)
+
+        function = cube_parts.composite_function
+
+        raster_size_id = '{}-{}'.format(params['grs'], int(params['resolution']))
+
+        cube_id = cube_parts.datacube
+
+        cube = Collection.query().filter(Collection.id == cube_id).first()
+
+        if cube is None:
+            cube = Collection(
+                id=cube_id,
+                temporal_composition_schema_id=params['temporal_schema'] if function.upper() != 'IDENTITY' else 'Anull',
+                raster_size_schema_id=raster_size_id,
+                composite_function_schema_id=function,
+                grs_schema_id=params['grs'],
+                description=params['description'],
+                radiometric_processing=None,
+                geometry_processing=None,
+                sensor=None,
+                is_cube=True,
+                oauth_scope=params.get('oauth_scope', None),
+                license=params['license'],
+                bands_quicklook=','.join(params['bands_quicklook'])
+            )
+
+            cube.save()
 
         bands = []
-        for cube in cubes:
-            # save bands
-            for band in params['bands']:
-                band = band.strip()
+        for band in params['bands']:
+            band = band.strip()
 
-                if (band == 'cnc' and cube.composite_function_schema_id == 'IDENTITY') or \
-                    (band =='quality' and cube.composite_function_schema_id != 'IDENTITY'):
-                    continue
+            if (band == 'cnc' and cube.composite_function_schema_id == 'IDENTITY') or \
+                    (band == 'quality' and cube.composite_function_schema_id != 'IDENTITY'):
+                continue
 
-                is_not_cloud = band != 'quality' and band != 'cnc'
-                bands.append(Band(
-                    name=band,
-                    collection_id=cube.id,
-                    min=0 if is_not_cloud else 0,
-                    max=10000 if is_not_cloud else 255,
-                    fill=-9999 if is_not_cloud else 0,
-                    scale=0.0001 if is_not_cloud else 1,
-                    data_type='int16' if is_not_cloud else 'Uint16',
-                    common_name=band,
-                    resolution_x=params['resolution'],
-                    resolution_y=params['resolution'],
-                    resolution_unit='m',
-                    description='',
-                    mime_type='image/tiff'
-                ))
+            is_not_cloud = band != 'quality' and band != 'cnc'
+            bands.append(Band(
+                name=band,
+                collection_id=cube.id,
+                min=0 if is_not_cloud else 0,
+                max=10000 if is_not_cloud else 255,
+                fill=-9999 if is_not_cloud else 0,
+                scale=0.0001 if is_not_cloud else 1,
+                data_type='int16' if is_not_cloud else 'Uint16',
+                common_name=band,
+                resolution_x=params['resolution'],
+                resolution_y=params['resolution'],
+                resolution_unit='m',
+                description='',
+                mime_type='image/tiff'
+            ))
+
         BaseModel.save_all(bands)
 
-        return cubes_serealized, 201
+        return Serializer.serialize(cube)
+
+    def create_cube(self, params):
+        """Create a data cube definition.
+
+        Note:
+            If you provide a data cube with composite function like MED, STK, it does not create
+            cube metadata for IDENTITY. You must pass the composite function in order
+            to create a IDENTITY data cube.
+
+        Returns:
+             Tuple with serialized cube and HTTP Status code, respectively.
+        """
+        cube_name = '{}_{}'.format(
+            params['datacube'],
+            int(params['resolution'])
+        )
+
+        cube_serialized = []
+
+        if params['composite_function'] != 'IDENTITY':
+            temporal_schema = TemporalCompositionSchema.query() \
+                .filter(TemporalCompositionSchema.id == params['temporal_schema']) \
+                .first_or_404()
+
+            temporal_str = f'{temporal_schema.temporal_composite_t}{temporal_schema.temporal_composite_unit[0].upper()}'
+
+            cube_name = f'{cube_name}_{temporal_str}_{params["composite_function"]}'
+
+        cube = self._create_cube_definition(cube_name, params)
+
+        cube_serialized.append(cube)
+
+        return cube_serialized, 201
 
     def get_cube_status(self, datacube):
         datacube_request = datacube
@@ -194,28 +238,24 @@ class CubeBusiness:
         ), 200
 
     def start_process(self, params):
-        cube_id = get_cube_id(params['datacube'], 'MED')
+        cube_id = params['datacube']
         tiles = params['tiles']
         start_date = datetime.strptime(params['start_date'], '%Y-%m-%d').strftime('%Y-%m-%d')
         end_date = datetime.strptime(params['end_date'], '%Y-%m-%d').strftime('%Y-%m-%d') \
             if params.get('end_date') else datetime.now().strftime('%Y-%m-%d')
 
         # verify cube info
-        cube_infos = Collection.query().filter(
-            Collection.id == cube_id
-        ).first()
-        if not cube_infos:
-            return 'Cube not found!', 404
+        cube_infos = self.get_cube_or_404(cube_id)
 
         # get bands list
         bands = Band.query().filter(
-            Band.collection_id == get_cube_id(params['datacube'])
+            Band.collection_id == cube_id
         ).all()
         bands_list = [band.name for band in bands]
 
         # items => old mosaic
         # orchestrate
-        self.score['items'] = orchestrate(params['datacube'], cube_infos, tiles, start_date, end_date)
+        self.score['items'] = orchestrate(cube_id, cube_infos, tiles, start_date, end_date)
 
         # prepare merge
         prepare_merge(self, params['datacube'], params['collections'].split(','), params['satellite'], bands_list,

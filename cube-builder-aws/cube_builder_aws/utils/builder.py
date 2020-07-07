@@ -127,6 +127,8 @@ def decode_periods(temporal_schema, start_date, end_date, time_step):
         if len(requested_periods) == 0 and count > 0:
             requested_periods[basedate].append(requested_period)
     else:
+        start_date = datetime.datetime.strptime(start_date, '%Y-%m-%d')
+        end_date = datetime.datetime.strptime(end_date, '%Y-%m-%d')
         yeari = start_date.year
         yearf = end_date.year
         monthi = start_date.month
@@ -366,7 +368,7 @@ def get_cube_id(cube, function=None):
         return '{}_{}'.format(cube, function)
 
 
-def get_cube_parts(datacube: str) -> List[str]:
+class DataCubeFragments(list):
     """Parse a data cube name and retrieve their parts.
 
     A data cube is composed by the following structure:
@@ -376,21 +378,62 @@ def get_cube_parts(datacube: str) -> List[str]:
 
     Examples:
         >>> # Parse Sentinel 2 Monthly MEDIAN
-        >>> get_cube_parts('S2_10_1M_MED') # ['S2', '10', '1M', 'MED']
+        >>> cube_parts = DataCubeFragments('S2_10_1M_MED') # ['S2', '10', '1M', 'MED']
+        >>> cube_parts.composite_function
+        ... 'MED'
         >>> # Parse Sentinel 2 IDENTITY
-        >>> get_cube_parts('S2_10') # ['S2', '10']
-        >>> # Invalid data cubes
-        >>> get_cube_parts('S2-10')
-
-    Raises:
-        ValueError when data cube name is invalid.
+        >>> cube_parts = DataCubeFragments('S2_10') # ['S2', '10']
+        >>> cube_parts.composite_function
+        ... 'IDENTITY'
+        >>> DataCubeFragments('S2-10') # ValueError Invalid data cube name
     """
-    cube_fragments = datacube.split('_')
 
-    if len(cube_fragments) > 4 or len(cube_fragments) < 2:
-        raise ValueError('Invalid data cube name. "{}"'.format(datacube))
+    def __init__(self, datacube: str, function=None):
+        """Construct a Data Cube Fragments parser.
 
-    return cube_fragments
+        Exceptions:
+            ValueError when data cube name is invalid.
+        """
+        cube_fragments = self.parse(datacube, function)
+
+        self.datacube = '_'.join(cube_fragments)
+
+        super(DataCubeFragments, self).__init__(cube_fragments)
+
+    @staticmethod
+    def parse(datacube: str, function: str = None) -> List[str]:
+        cube_fragments = datacube.split('_')
+
+        size = len(cube_fragments)
+
+        if size > 4 or size < 2 or \
+                (size == 2 and function not in [None, 'IDENTITY']):
+            raise ValueError('Invalid data cube name. "{}"'.format(datacube))
+
+        if function and (function.upper() != 'IDENTITY'):
+            return cube_fragments if len(cube_fragments) == 4 else cube_fragments + [function.upper()]
+
+        return cube_fragments[:2] if function is None and len(cube_fragments) < 4 else cube_fragments
+
+    def __str__(self):
+        """Retrieve the data cube name."""
+        return self.datacube
+
+    @property
+    def composite_function(self):
+        """Retrieve data cube composite function based.
+
+        TODO: Add reference to document User Guide - Convention Data Cube Names
+        """
+        if len(self) < 4:
+            return 'IDENTITY'
+
+        return self[-1]
+
+
+def get_cube_parts(datacube: str) -> DataCubeFragments:
+    """Builds a `DataCubeFragments` and validate data cube name policy."""
+    return DataCubeFragments(datacube)
 
 
 #############################
