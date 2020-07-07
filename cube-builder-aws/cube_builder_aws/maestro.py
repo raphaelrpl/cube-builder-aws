@@ -24,7 +24,7 @@ from bdc_db.models import CollectionTile, CollectionItem, Tile, \
 
 from .logger import logger
 from .utils.builder import decode_periods, encode_key, \
-    getMaskStats, getMask, generateQLook, get_cube_id, get_resolution_by_satellite
+    getMaskStats, getMask, generateQLook, get_cube_id, get_resolution_by_satellite, DataCubeFragments
 
 
 def orchestrate(datacube, cube_infos, tiles, start_date, end_date):
@@ -39,6 +39,12 @@ def orchestrate(datacube, cube_infos, tiles, start_date, end_date):
     collection_tiles = []
     tiles = list(set(tiles))
     tiles_infos = {}
+
+    cube_parts = DataCubeFragments(datacube)
+
+    # Prepare composite functions related to data cube name
+    composite_functions = [cube_parts.composite_function]
+
     for tile in tiles:
         # verify tile exists
         tile_info = list(filter(lambda t: t[0].id == tile, tiles_by_grs))
@@ -46,8 +52,8 @@ def orchestrate(datacube, cube_infos, tiles, start_date, end_date):
             return 'tile ({}) not found in GRS ({})'.format(tile, cube_infos.grs_schema_id), 404
 
         tiles_infos[tile] = tile_info[0]
-        for function in ['IDENTITY', 'STK', 'MED']:
-            cube_id = get_cube_id(datacube, function)
+        for function in composite_functions:
+            cube_id = str(DataCubeFragments(datacube, function))
             collection_tile = CollectionTile.query().filter(
                 CollectionTile.collection_id == cube_id,
                 CollectionTile.grs_schema_id == cube_infos.grs_schema_id,
@@ -73,7 +79,7 @@ def orchestrate(datacube, cube_infos, tiles, start_date, end_date):
     # get/mount timeline
     temporal_schema = cube_infos.temporal_composition_schema.temporal_schema
     step = cube_infos.temporal_composition_schema.temporal_composite_t
-    timeline = decode_periods(temporal_schema.upper(), cube_start_date, end_date, int(step))
+    timeline = decode_periods(temporal_schema.upper(), cube_start_date, end_date, int(step or 1))
 
     # create collection items (old model => mosaic)
     items_id = []
@@ -144,9 +150,18 @@ def next_step(services, activity):
     )
     if 'Attributes' in response and 'mycount' in response['Attributes']:
         mycount = int(response['Attributes']['mycount'])
+
+        cube_fragments = DataCubeFragments(activity['data_cube'])
+
         if mycount == activity['totalInstancesToBeDone']:
             if activity['action'] == 'merge':
+                if cube_fragments.composite_function == 'IDENTITY':
+                    # TODO: Prepare publish with expected activity body
+                    return next_publish(services, activity)
+
+                # Dispatch blend when all merges done
                 next_blend(services, activity)
+
             elif activity['action'] == 'blend':
                 next_publish(services, activity)
 
