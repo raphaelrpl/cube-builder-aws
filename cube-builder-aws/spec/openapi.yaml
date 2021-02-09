@@ -25,57 +25,19 @@ paths:
   /:
     get:
       tags:
-        - "status"
-      summary: "Status"
-      description: "return status of application"
+        - 'status'
+      summary: 'The application health status'
+      description: "Returns the root Cube Builder system status"
       responses:
-        200:
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  description:
-                    type: string
-                  message:
-                    type: string
-                  version:
-                    type: string
-
-  /cube-status:
-    get:
-      tags:
-        - "cube-status"
-      summary: "Data Cube Status"
-      description: "Retrieve the data cube processing state, which refers the total of items and numbers of tasks to be done."
-      responses:
-        200:
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  finished:
-                    type: boolean
-                  start_date:
-                    type: string
-                  last_date:
-                    type: string
-                  done:
-                    type: number
-                  duration:
-                    type: string
-                  collection_item:
-                    type: number
-        400:
-          $ref: '#/components/responses/BadRequestError'
-        404:
-          $ref: '#/components/responses/NotFoundError'
+        '200':
+          $ref: '#/components/responses/Root'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /cubes:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The data cubes available
       responses:
         200:
@@ -85,32 +47,28 @@ paths:
 
     post:
       tags:
-        - "create-cube"
-      summary: "Create Cube"
-      description: "Create cube metadata"
+        - 'Cubes'
+      summary: "Create a data cube definition"
+      description: "Creates a data cube definition and make it available to be started."
       requestBody:
         description: "Initial informations to create Cube"
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/CubeCreation"
+              $ref: "#/components/schemas/CubeType"
       responses:
-        201:
-          description: "Successfully"
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  cubes:
-                    type: array
-                    description: list of cubes created
+        '201':
+          $ref: '#/components/responses/Cubes'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /cubes/{cubeId}:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The Data Cube definition.
       parameters:
         - $ref: '#/components/parameters/cubeId'
@@ -125,66 +83,88 @@ paths:
   /cubes/{cubeId}/metadata:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The parameters used to generate the given data cube.
       parameters:
         - $ref: '#/components/parameters/cubeId'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/DataCubeMeta'
-        404:
+        '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /cubes/{cubeId}/tiles:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The tiles which has any data cube item generated.
       parameters:
         - $ref: '#/components/parameters/cubeId'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/DataCubeTiles'
-        404:
+        '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /cubes/{cubeId}/tiles/geom:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The GeoJSON features of data cube tiles.
       parameters:
         - $ref: '#/components/parameters/cubeId'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/DataCubeTilesFeature'
-        404:
+        '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /cubes/{cubeId}/items:
     get:
       tags:
-        - "get-cubes"
+        - 'Cubes'
       summary: The data cube items available
       parameters:
         - $ref: '#/components/parameters/cubeId'
       responses:
-        200:
+        '200':
           $ref: '#/components/responses/DataCubeItems'
-        404:
+        '404':
           $ref: '#/components/responses/NotFoundError'
+        '500':
+          $ref: '#/components/responses/ServerError'
 
   /composite-functions:
     get:
       tags:
-        - "get-composite-functions"
+        - 'Composite Functions'
       summary: The supported composite functions for data cube generation.
       responses:
-        200:
-          type: array
-          items:
-            type: string
-        500:
+        '200':
+          $ref: '#/components/responses/CompositeFunctions'
+        '500':
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      tags:
+        - 'Composite Functions'
+      summary: Create a composite function
+      requestBody:
+        $ref: '#/components/requestBodies/CompositeFunction'
+      responses:
+        '201':
+          $ref: '#/components/responses/CompositeFunction'
+        '400':
+          $ref: '#/components/responses/InvalidParameter'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+        '500':
           $ref: '#/components/responses/ServerError'
 
   /list-buckets:
@@ -358,7 +338,52 @@ components:
       schema:
         type: string
 
+  requestBodies:
+    Cube:
+      description: 'A document describing the new data cube.'
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CubeType'
+
+    CompositeFunction:
+      description: 'A document describing the new composite function in the system.'
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CompositeFunctionType'
+
   responses:
+    Root:
+      description: 'The landing pages that provides the cube builder system status.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/RootType'
+
+    Cubes:
+      description: 'A JSON document with the list of cubes informations.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CubesType'
+
+    CompositeFunction:
+      description: 'A JSON document with the Composite Functiion definition'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CompositeFunctionType'
+
+    CompositeFunctions:
+      description: 'A JSON document with the list of supported Composite Functions by Cube Builder.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/CompositeFunctionsType'
+
     ListMerges:
       description: Response the data cube identity scenes built.
       content:
@@ -424,24 +449,156 @@ components:
           schema:
             $ref: '#/components/schemas/CubeTileFeatures'
 
-    BadRequestError:
-      description: The requested resource requires parameters that was not satisfied.
-      type: array
-      minItems: 1
-      items:
-        type: object
-        properties:
-          message:
-            type: string
+    InvalidParameter:
+      description: 'A query parameter has an invalid value.'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExceptionType'
+
     NotFoundError:
       description: The requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExceptionType'
+
     ServerError:
       description: A server error occurred
       content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ExceptionType'
         text/html:
           schema:
             type: string
+
+
   schemas:
+    ExceptionType:
+      title: Exception raised by the service
+      description: 'Information about the exception: an error code plus an optional description.'
+      type: object
+      properties:
+        code:
+          type: string
+        description:
+          type: string
+      required:
+        - code
+
+    RootType:
+      title: A document to display the API status
+      description: 'The landing pages that provides the cube builder system status.'
+      type: object
+      properties:
+        description:
+          type: string
+        message:
+          type: string
+        version:
+          type: string
+    CubesType:
+      title: List of Data Cubes definitions
+      description: 'A JSON document with the list of cubes informations.'
+      type: array
+      items:
+        $ref: '#/components/schemas/CubeType'
+
+    CubeType:
+      title: The data cube information
+      description: 'A JSON document with the entire information.'
+      type: object
+      required:
+        - name
+        - title
+        - description
+        - metadata
+        - collection_type
+        - composite_function_id
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        collection_type:
+          type: string
+        metadata:
+          type: object
+        temporal_composition_schema:
+          type: object
+        composite_function_id:
+          type: integer
+        bands:
+          type: array
+          items:
+            $ref: '#/components/schemas/BandType'
+
+    BandType:
+      title: 'The data cube band definition'
+      description: 'Store the collection band information.'
+      type: object
+      required:
+        - name
+        - common_name
+        - data_type
+        - resolution_id
+        - resolution_x
+        - resolution_y
+        - mime_type_id
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        common_name:
+          type: string
+        data_type:
+          type: string
+        min_value:
+          type: number
+        max_value:
+          type: number
+        nodata:
+          type: number
+        scale:
+          type: number
+        resolution_x:
+          type: number
+        resolution_y:
+          type: number
+        metadata:
+          type: object
+
+    CompositeFunctionType:
+      title: 'The composite function supported by Cube Builder'
+      description: ''
+      type: object
+      required:
+        - name
+        - description
+        - alias
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        description:
+          type: string
+        alias:
+          type: string
+
+    CompositeFunctionsType:
+      title: 'The list of composite function available in the server.'
+      description: 'A JSON document containing the supported composite functions.'
+      type: array
+      items:
+        $ref: '#/components/schema/CompositeFunctionType'
+
     MergeResult:
       description: The origin scenes used to build the given merge.
       type: object
@@ -709,91 +866,3 @@ components:
           type: string
         metadata:
           type: object
-
-    CubeCreation:
-      type: object
-      required:
-        - datacube
-        - title
-        - version
-        - grs
-        - resolution
-        - temporal_composition
-        - composite_function
-        - bands
-        - quality_band
-        - indexes
-        - metadata
-        - bands_quicklook
-        - description
-        - license
-      properties:
-        datacube:
-          type: string
-          description: Cube name (without 'composite_function' in the name)
-        title:
-          type: string
-          description: The data cube title
-        version:
-          type: number
-          description: Data cube version number.
-        grs:
-          type: string
-          description: name of grs_schema
-        resolution:
-          type: number
-          description: Spatial Resolution of cube
-        temporal_composition:
-          type: object
-          description: The temporal schema definition
-        composite_function:
-          type: string
-          description: The name of Composite Function. (IDT, STK, etc)
-        bands:
-          type: array
-          description: List of bands to be related with data cube.
-          items:
-            $ref: '#/components/schemas/BandCreation'
-        quality_band:
-          type: string
-          description: The name of cloud masking band. (Must exists in the property "bands")
-        indexes:
-          type: array
-          items:
-            $ref: '#/components/schemas/BandCreation'
-        metadata:
-          type: object
-          description: Extra metadata for data cube.
-        bands_quicklook:
-          type: array
-          description: list of bands (common name) to composite quicklook (RGB)
-          items:
-            type: string
-        description:
-          type: string
-          description: description of cube
-        license:
-          type: string
-          description: license of cube
-        public:
-          type: boolean
-          description: Set the collection visibility
-        mask:
-          type: object
-          description: Set the data cube masking.
-          properties:
-            clear_data:
-              type: array
-              description: List of values to be considered as valid data and also as clear data.
-              items:
-                type: number
-            not_clear_data:
-              type: array
-              description: List of values to be considered as Invalid data.
-              items:
-                type: number
-            others:
-              type: array
-              description: LIst of values to be considered as valid data but not as clear data.
-              items:
-                type: number
